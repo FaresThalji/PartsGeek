@@ -1,2156 +1,675 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>PG Fulfillment Engine</title>
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg: #08090d;
-            --panel: rgba(18, 20, 27, 0.72);
-            --panel-solid: #12141b;
-            --border: rgba(255, 255, 255, 0.08);
-            --border-hover: rgba(255, 255, 255, 0.15);
-
-            --text: #f5f7fb;
-            --muted: #8b91a1;
-
-            --accent: #7c5cff;
-            --accent-2: #a78bfa;
-
-            --green: #35d07f;
-            --red: #ff5c70;
-            --yellow: #f5c451;
-            --blue: #5ca9ff;
-
-            --radius: 18px;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
-        body {
-            font-family: "Inter", sans-serif;
-            background:
-                radial-gradient(
-                    circle at 15% 10%,
-                    rgba(124, 92, 255, 0.12),
-                    transparent 30%
-                ),
-                radial-gradient(
-                    circle at 85% 85%,
-                    rgba(92, 169, 255, 0.08),
-                    transparent 30%
-                ),
-                var(--bg);
-
-            color: var(--text);
-            min-height: 100vh;
-        }
-
-        /* =========================================================
-           APP SHELL
-        ========================================================= */
-
-        .app {
-            display: flex;
-            min-height: 100vh;
-        }
-
-        /* =========================================================
-           SIDEBAR
-        ========================================================= */
-
-        .sidebar {
-            width: 250px;
-            min-height: 100vh;
-
-            position: fixed;
-            left: 0;
-            top: 0;
-            bottom: 0;
-
-            padding: 24px 16px;
-
-            background: rgba(10, 11, 16, 0.82);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-
-            border-right: 1px solid var(--border);
-
-            display: flex;
-            flex-direction: column;
-
-            z-index: 100;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-
-            padding: 4px 10px 28px;
-        }
-
-        .brand-logo {
-            width: 40px;
-            height: 40px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            border-radius: 12px;
-
-            background:
-                linear-gradient(
-                    135deg,
-                    var(--accent),
-                    #5b8cff
-                );
-
-            box-shadow:
-                0 10px 30px rgba(124, 92, 255, 0.25);
-
-            font-size: 17px;
-            font-weight: 800;
-        }
-
-        .brand-text h1 {
-            font-size: 14px;
-            font-weight: 800;
-            letter-spacing: -0.3px;
-        }
-
-        .brand-text span {
-            display: block;
-
-            margin-top: 3px;
-
-            font-size: 10px;
-            color: var(--muted);
-
-            letter-spacing: 0.8px;
-            text-transform: uppercase;
-        }
-
-        .nav-title {
-            padding: 0 10px;
-            margin: 8px 0 10px;
-
-            font-size: 10px;
-            font-weight: 700;
-
-            color: #555b6b;
-
-            letter-spacing: 1.2px;
-            text-transform: uppercase;
-        }
-
-        .nav {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .nav-item {
-            border: 1px solid transparent;
-
-            background: transparent;
-
-            color: #858b9b;
-
-            padding: 12px;
-
-            border-radius: 12px;
-
-            display: flex;
-            align-items: center;
-            gap: 12px;
-
-            cursor: pointer;
-
-            font-family: inherit;
-            font-size: 13px;
-            font-weight: 600;
-
-            text-align: left;
-
-            transition: 0.2s ease;
-        }
-
-        .nav-item:hover {
-            background: rgba(255, 255, 255, 0.04);
-            color: white;
-        }
-
-        .nav-item.active {
-            background: rgba(124, 92, 255, 0.12);
-            border-color: rgba(124, 92, 255, 0.18);
-            color: white;
-        }
-
-        .nav-icon {
-            width: 18px;
-            text-align: center;
-            font-size: 15px;
-        }
-
-        .sidebar-bottom {
-            margin-top: auto;
-        }
-
-        .connection-card {
-            padding: 14px;
-
-            border-radius: 14px;
-
-            background: rgba(255, 255, 255, 0.025);
-            border: 1px solid var(--border);
-        }
-
-        .connection-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-
-            margin-bottom: 10px;
-        }
-
-        .connection-label {
-            color: #6e7483;
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            font-weight: 700;
-        }
-
-        .status-dot {
-            width: 7px;
-            height: 7px;
-
-            border-radius: 50%;
-
-            background: var(--green);
-
-            box-shadow: 0 0 12px rgba(53, 208, 127, 0.8);
-        }
-
-        .connection-value {
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        /* =========================================================
-           MAIN
-        ========================================================= */
-
-        .main {
-            width: calc(100% - 250px);
-            margin-left: 250px;
-
-            padding: 28px 34px 40px;
-        }
-
-        .topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-
-            margin-bottom: 30px;
-        }
-
-        .page-title h2 {
-            font-size: 26px;
-            font-weight: 800;
-            letter-spacing: -0.8px;
-        }
-
-        .page-title p {
-            color: var(--muted);
-            font-size: 12px;
-            margin-top: 7px;
-        }
-
-        .system-status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-
-            padding: 10px 14px;
-
-            border-radius: 999px;
-
-            background: rgba(255,255,255,0.035);
-            border: 1px solid var(--border);
-
-            font-size: 11px;
-            color: #9da3b2;
-        }
-
-        .system-status .status-dot {
-            width: 6px;
-            height: 6px;
-        }
-
-        /* =========================================================
-           CARDS
-        ========================================================= */
-
-        .glass {
-            background: var(--panel);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-
-            border: 1px solid var(--border);
-
-            border-radius: var(--radius);
-
-            box-shadow:
-                0 20px 60px rgba(0, 0, 0, 0.18);
-
-            transition: border-color 0.2s ease;
-        }
-
-        .glass:hover {
-            border-color: var(--border-hover);
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-
-            gap: 14px;
-
-            margin-bottom: 18px;
-        }
-
-        .stat-card {
-            padding: 20px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::after {
-            content: "";
-
-            position: absolute;
-
-            width: 100px;
-            height: 100px;
-
-            right: -40px;
-            bottom: -50px;
-
-            border-radius: 50%;
-
-            background: rgba(124, 92, 255, 0.08);
-        }
-
-        .stat-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-
-            color: #777e8d;
-
-            font-weight: 700;
-        }
-
-        .stat-value {
-            margin-top: 9px;
-
-            font-size: 27px;
-            font-weight: 800;
-
-            letter-spacing: -1px;
-        }
-
-        .stat-sub {
-            margin-top: 5px;
-
-            color: #666d7d;
-            font-size: 10px;
-        }
-
-        /* =========================================================
-           CONTENT GRID
-        ========================================================= */
-
-        .content-grid {
-            display: grid;
-
-            grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr);
-
-            gap: 18px;
-        }
-
-        .panel {
-            padding: 22px;
-        }
-
-        .panel-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-
-            margin-bottom: 20px;
-        }
-
-        .panel-title {
-            font-size: 15px;
-            font-weight: 800;
-        }
-
-        .panel-description {
-            margin-top: 5px;
-
-            font-size: 11px;
-            color: var(--muted);
-
-            line-height: 1.5;
-        }
-
-        .badge {
-            padding: 5px 9px;
-
-            border-radius: 999px;
-
-            font-size: 9px;
-            font-weight: 700;
-
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-
-            background: rgba(124, 92, 255, 0.1);
-            color: #a895ff;
-        }
-
-        /* =========================================================
-           FORM
-        ========================================================= */
-
-        .field {
-            margin-bottom: 15px;
-        }
-
-        .field label {
-            display: block;
-
-            margin-bottom: 7px;
-
-            color: #858b9b;
-
-            font-size: 10px;
-            font-weight: 700;
-
-            text-transform: uppercase;
-            letter-spacing: 0.7px;
-        }
-
-        textarea,
-        input,
-        select {
-            width: 100%;
-
-            border: 1px solid var(--border);
-
-            background: rgba(0, 0, 0, 0.25);
-
-            color: white;
-
-            border-radius: 11px;
-
-            padding: 12px 13px;
-
-            outline: none;
-
-            font-family: "Inter", sans-serif;
-            font-size: 12px;
-
-            transition: 0.2s ease;
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 145px;
-            line-height: 1.6;
-        }
-
-        input:focus,
-        textarea:focus,
-        select:focus {
-            border-color: rgba(124, 92, 255, 0.55);
-
-            box-shadow:
-                0 0 0 3px rgba(124, 92, 255, 0.08);
-        }
-
-        select {
-            cursor: pointer;
-        }
-
-        .template-hint {
-            margin-top: 7px;
-
-            color: #606776;
-
-            font-size: 10px;
-        }
-
-        .button-row {
-            display: grid;
-
-            grid-template-columns: repeat(3, 1fr);
-
-            gap: 9px;
-
-            margin-top: 17px;
-        }
-
-        button {
-            font-family: inherit;
-        }
-
-        .btn {
-            border: 1px solid transparent;
-
-            border-radius: 11px;
-
-            padding: 12px 14px;
-
-            cursor: pointer;
-
-            font-size: 11px;
-            font-weight: 700;
-
-            transition:
-                transform 0.15s ease,
-                opacity 0.15s ease,
-                border-color 0.15s ease;
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-primary {
-            background: linear-gradient(
-                135deg,
-                #7658ff,
-                #6244e8
-            );
-
-            color: white;
-
-            box-shadow:
-                0 8px 25px rgba(124, 92, 255, 0.2);
-        }
-
-        .btn-secondary {
-            background: rgba(255,255,255,0.04);
-
-            color: #dfe2ea;
-
-            border-color: var(--border);
-        }
-
-        .btn-danger {
-            background: rgba(255, 92, 112, 0.08);
-
-            color: #ff7787;
-
-            border-color: rgba(255, 92, 112, 0.15);
-        }
-
-        .btn-full {
-            width: 100%;
-        }
-
-        /* =========================================================
-           FAST CHECK
-        ========================================================= */
-
-        .fast-check {
-            margin-top: 18px;
-        }
-
-        .fast-info {
-            padding: 15px;
-
-            border-radius: 13px;
-
-            background: rgba(92, 169, 255, 0.05);
-
-            border: 1px solid rgba(92, 169, 255, 0.1);
-
-            margin-bottom: 15px;
-        }
-
-        .fast-info-title {
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        .fast-info p {
-            margin-top: 5px;
-
-            color: #747b8c;
-            font-size: 10px;
-            line-height: 1.5;
-        }
-
-        .fast-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-
-            gap: 9px;
-        }
-
-        /* =========================================================
-           COOKIE
-        ========================================================= */
-
-        .cookie-box {
-            position: relative;
-        }
-
-        .cookie-input {
-            padding-right: 42px;
-        }
-
-        .toggle-password {
-            position: absolute;
-
-            right: 9px;
-            bottom: 9px;
-
-            width: 28px;
-            height: 28px;
-
-            border: none;
-
-            background: transparent;
-
-            color: #777e8e;
-
-            cursor: pointer;
-        }
-
-        /* =========================================================
-           LOGS
-        ========================================================= */
-
-        .logs-panel {
-            margin-top: 18px;
-        }
-
-        .logs {
-            height: 330px;
-
-            overflow-y: auto;
-
-            background: #07080b;
-
-            border: 1px solid rgba(255,255,255,0.06);
-
-            border-radius: 13px;
-
-            padding: 15px;
-
-            font-family: "SFMono-Regular", Consolas, monospace;
-
-            font-size: 10px;
-
-            line-height: 1.8;
-        }
-
-        .logs::-webkit-scrollbar {
-            width: 5px;
-        }
-
-        .logs::-webkit-scrollbar-thumb {
-            background: #292d38;
-            border-radius: 20px;
-        }
-
-        .log-line {
-            color: #737a89;
-
-            border-bottom: 1px solid rgba(255,255,255,0.025);
-
-            padding: 2px 0;
-        }
-
-        .log-line.success {
-            color: var(--green);
-        }
-
-        .log-line.error {
-            color: var(--red);
-        }
-
-        .log-line.warning {
-            color: var(--yellow);
-        }
-
-        .log-line.info {
-            color: #7caeff;
-        }
-
-        .empty-logs {
-            color: #414653;
-            text-align: center;
-
-            padding-top: 120px;
-
-            font-family: "Inter", sans-serif;
-        }
-
-        /* =========================================================
-           RUNNING BAR
-        ========================================================= */
-
-        .running-bar {
-            display: none;
-
-            margin-bottom: 18px;
-
-            padding: 13px 15px;
-
-            border-radius: 13px;
-
-            background: rgba(124, 92, 255, 0.08);
-
-            border: 1px solid rgba(124, 92, 255, 0.18);
-        }
-
-        .running-bar.visible {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .running-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .spinner {
-            width: 16px;
-            height: 16px;
-
-            border: 2px solid rgba(255,255,255,0.15);
-            border-top-color: var(--accent);
-
-            border-radius: 50%;
-
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .running-text {
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        /* =========================================================
-           TOAST
-        ========================================================= */
-
-        .toast-container {
-            position: fixed;
-
-            right: 25px;
-            bottom: 25px;
-
-            display: flex;
-            flex-direction: column;
-
-            gap: 8px;
-
-            z-index: 999;
-        }
-
-        .toast {
-            min-width: 250px;
-
-            padding: 13px 15px;
-
-            border-radius: 12px;
-
-            background: #171923;
-
-            border: 1px solid var(--border);
-
-            box-shadow: 0 15px 50px rgba(0,0,0,0.4);
-
-            font-size: 11px;
-
-            animation: toastIn 0.25s ease;
-        }
-
-        @keyframes toastIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* =========================================================
-           FLOATING PLAYER
-        ========================================================= */
-        .floating-player {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            width: 340px;
-            height: 260px;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            resize: both;
-            overflow: hidden;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            min-width: 250px;
-            min-height: 180px;
-        }
-
-        .drag-handle {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 8px 12px;
-            cursor: grab;
-            border-bottom: 1px solid var(--border);
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            color: #777e8d;
-            user-select: none;
-        }
-
-        .drag-handle:active {
-            cursor: grabbing;
-        }
-
-        .player-content {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-            padding-top: 10px;
-            background: rgba(0,0,0,0.2);
-        }
-
-        /* =========================================================
-           RESPONSIVE
-        ========================================================= */
-
-        @media (max-width: 1100px) {
-            .sidebar {
-                width: 210px;
-            }
-
-            .main {
-                width: calc(100% - 210px);
-                margin-left: 210px;
-            }
-
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 760px) {
-            .sidebar {
-                position: relative;
-                width: 100%;
-                min-height: auto;
-            }
-
-            .app {
-                flex-direction: column;
-            }
-
-            .main {
-                width: 100%;
-                margin-left: 0;
-                padding: 20px;
-            }
-
-            .stats {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .topbar {
-                gap: 15px;
-                align-items: flex-start;
-            }
-
-            .button-row {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* =========================================================
-           LIGHT THEME OVERRIDES
-        ========================================================= */
-        body.light-theme {
-            --bg: #f4f6fb;
-            --panel: rgba(255, 255, 255, 0.85);
-            --panel-solid: #ffffff;
-            --border: rgba(0, 0, 0, 0.08);
-            --border-hover: rgba(0, 0, 0, 0.15);
-            --text: #1a1d24;
-            --muted: #6b7280;
-        }
+            --bg: #08090d; --panel: rgba(18, 20, 27, 0.72); --panel-solid: #12141b;
+            --border: rgba(255, 255, 255, 0.08); --border-hover: rgba(255, 255, 255, 0.15);
+            --text: #f5f7fb; --muted: #8b91a1; --accent: #7c5cff; --green: #35d07f;
+            --red: #ff5c70; --yellow: #f5c451; --radius: 18px;
+        }
+        html { scroll-behavior: smooth; }
+        body { font-family: "Inter", sans-serif; background: radial-gradient(circle at 15% 10%, rgba(124, 92, 255, 0.12), transparent 30%), radial-gradient(circle at 85% 85%, rgba(92, 169, 255, 0.08), transparent 30%), var(--bg); color: var(--text); min-height: 100vh; }
+        
+        .app { display: flex; min-height: 100vh; }
+        .sidebar { width: 250px; position: fixed; left: 0; top: 0; bottom: 0; padding: 24px 16px; background: rgba(10, 11, 16, 0.82); backdrop-filter: blur(24px); border-right: 1px solid var(--border); display: flex; flex-direction: column; z-index: 100; }
+        .brand { display: flex; align-items: center; gap: 12px; padding: 4px 10px 28px; }
+        .brand-logo { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: linear-gradient(135deg, var(--accent), #5b8cff); box-shadow: 0 10px 30px rgba(124, 92, 255, 0.25); font-size: 17px; font-weight: 800; }
+        .brand-text h1 { font-size: 14px; font-weight: 800; letter-spacing: -0.3px; }
+        .brand-text span { display: block; margin-top: 3px; font-size: 10px; color: var(--muted); letter-spacing: 0.8px; text-transform: uppercase; }
+        .nav-title { padding: 0 10px; margin: 8px 0 10px; font-size: 10px; font-weight: 700; color: #555b6b; letter-spacing: 1.2px; text-transform: uppercase; }
+        .nav { display: flex; flex-direction: column; gap: 5px; }
+        .nav-item { border: 1px solid transparent; background: transparent; color: #858b9b; padding: 12px; border-radius: 12px; display: flex; align-items: center; gap: 12px; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; text-align: left; transition: 0.2s ease; }
+        .nav-item:hover { background: rgba(255, 255, 255, 0.04); color: white; }
+        .nav-item.active { background: rgba(124, 92, 255, 0.12); border-color: rgba(124, 92, 255, 0.18); color: white; }
+        .nav-icon { width: 18px; text-align: center; font-size: 15px; }
+        .sidebar-bottom { margin-top: auto; }
+        .connection-card { padding: 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.025); border: 1px solid var(--border); }
+        .connection-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .connection-label { color: #6e7483; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px rgba(53, 208, 127, 0.8); }
+        .connection-value { font-size: 12px; font-weight: 600; }
+
+        .main { width: calc(100% - 250px); margin-left: 250px; padding: 28px 34px 40px; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+        .page-title h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.8px; }
+        .page-title p { color: var(--muted); font-size: 12px; margin-top: 7px; }
+        .system-status { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 999px; background: rgba(255,255,255,0.035); border: 1px solid var(--border); font-size: 11px; color: #9da3b2; }
+        .system-status .status-dot { width: 6px; height: 6px; }
+
+        .glass { background: var(--panel); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18); transition: border-color 0.2s ease; }
+        .glass:hover { border-color: var(--border-hover); }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+        .stat-card { padding: 20px; position: relative; overflow: hidden; }
+        .stat-card::after { content: ""; position: absolute; width: 100px; height: 100px; right: -40px; bottom: -50px; border-radius: 50%; background: rgba(124, 92, 255, 0.08); }
+        .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #777e8d; font-weight: 700; }
+        .stat-value { margin-top: 9px; font-size: 27px; font-weight: 800; letter-spacing: -1px; }
+        .stat-sub { margin-top: 5px; color: #666d7d; font-size: 10px; }
+
+        .content-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr); gap: 18px; }
+        .panel { padding: 22px; }
+        .panel-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+        .panel-title { font-size: 15px; font-weight: 800; }
+        .panel-description { margin-top: 5px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+        .badge { padding: 5px 9px; border-radius: 999px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; background: rgba(124, 92, 255, 0.1); color: #a895ff; }
+
+        .field { margin-bottom: 15px; }
+        .field label { display: block; margin-bottom: 7px; color: #858b9b; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; }
+        textarea, input, select { width: 100%; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.25); color: white; border-radius: 11px; padding: 12px 13px; outline: none; font-family: "Inter", sans-serif; font-size: 12px; transition: 0.2s ease; }
+        textarea { resize: vertical; min-height: 145px; line-height: 1.6; }
+        input:focus, textarea:focus { border-color: rgba(124, 92, 255, 0.55); box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.08); }
+        .template-hint { margin-top: 7px; color: #606776; font-size: 10px; }
+        .button-row { display: grid; gap: 9px; margin-top: 17px; }
+        
+        .btn { font-family: inherit; border: 1px solid transparent; border-radius: 11px; padding: 12px 14px; cursor: pointer; font-size: 11px; font-weight: 700; transition: transform 0.15s ease, opacity 0.15s ease, border-color 0.15s ease; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn:hover { transform: translateY(-1px); }
+        .btn-primary { background: linear-gradient(135deg, #7658ff, #6244e8); color: white; box-shadow: 0 8px 25px rgba(124, 92, 255, 0.2); }
+        .btn-secondary { background: rgba(255,255,255,0.04); color: #dfe2ea; border-color: var(--border); }
+        .btn-danger { background: rgba(255, 92, 112, 0.08); color: #ff7787; border-color: rgba(255, 92, 112, 0.15); }
+        .btn-full { width: 100%; }
+
+        .cookie-box { position: relative; }
+        .cookie-input { padding-right: 42px; }
+        .toggle-password { position: absolute; right: 9px; bottom: 9px; width: 28px; height: 28px; border: none; background: transparent; color: #777e8e; cursor: pointer; }
+
+        .logs-panel { margin-top: 18px; }
+        .logs { height: 330px; overflow-y: auto; background: #07080b; border: 1px solid rgba(255,255,255,0.06); border-radius: 13px; padding: 15px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; line-height: 1.8; }
+        .logs::-webkit-scrollbar { width: 5px; }
+        .logs::-webkit-scrollbar-thumb { background: #292d38; border-radius: 20px; }
+        .log-line { color: #737a89; border-bottom: 1px solid rgba(255,255,255,0.025); padding: 2px 0; }
+        .log-line.success { color: var(--green); }
+        .log-line.error { color: var(--red); }
+        .log-line.warning { color: var(--yellow); }
+        .log-line.info { color: #7caeff; }
+        .empty-logs { color: #414653; text-align: center; padding-top: 120px; font-family: "Inter", sans-serif; }
+
+        .running-bar { display: none; margin-bottom: 18px; padding: 13px 15px; border-radius: 13px; background: rgba(124, 92, 255, 0.08); border: 1px solid rgba(124, 92, 255, 0.18); }
+        .running-bar.visible { display: flex; align-items: center; justify-content: space-between; }
+        .running-left { display: flex; align-items: center; gap: 10px; }
+        .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.15); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .running-text { font-size: 11px; font-weight: 600; }
+
+        /* Data Tables for Deposco Sync */
+        .data-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid var(--border); margin-bottom: 15px; padding: 0 10px; flex-wrap: wrap; gap: 14px;}
+        .data-nav { display: flex; gap: 28px; font-family: 'Inter', sans-serif; }
+        .d-tab { font-size: 11px; font-weight: 700; color: var(--muted); padding: 12px 2px 10px; cursor: pointer; transition: 0.3s; position: relative; text-transform: uppercase; letter-spacing: 0.5px; }
+        .d-tab:hover { color: var(--text); }
+        .d-tab.active { color: var(--accent); }
+        .d-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--accent); border-radius: 2px; box-shadow: 0 -2px 10px var(--accent); }
+        .table-filters { display: flex; gap: 12px; margin-bottom: 10px; }
+        .filter-dropdown { padding: 6px 12px; border-radius: 8px; font-size: 10px; text-transform: uppercase; width: auto;}
+        
+        .table-wrap { overflow-x: auto; padding-bottom: 10px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; }
+        th { padding: 10px 14px; font-size: 9px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); white-space: nowrap; background: rgba(0,0,0,0.2); }
+        td { padding: 12px 14px; font-size: 11px; font-weight: 500; border-bottom: 1px solid var(--border); transition: background 0.2s; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        .mono { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+        .empty-row td { text-align: center; color: var(--muted); font-style: italic; padding: 30px; }
+        
+        .badge-st { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; }
+        .badge-st::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+        .st-ok { background: rgba(53, 208, 127, 0.15); color: var(--green); border: 1px solid rgba(53, 208, 127, 0.3); }
+        .st-warn { background: rgba(245, 196, 81, 0.15); color: var(--yellow); border: 1px solid rgba(245, 196, 81, 0.3); }
+        .st-err { background: rgba(255, 92, 112, 0.15); color: var(--red); border: 1px solid rgba(255, 92, 112, 0.3); }
+        
+        .trk-link { color: var(--accent); text-decoration: none; font-weight: 700; transition: color 0.2s; }
+        .trk-link:hover { color: white; text-decoration: underline; }
+
+        .toast-container { position: fixed; right: 25px; bottom: 25px; display: flex; flex-direction: column; gap: 8px; z-index: 999; }
+        .toast { min-width: 250px; padding: 13px 15px; border-radius: 12px; background: #171923; color: white; border: 1px solid var(--border); box-shadow: 0 15px 50px rgba(0,0,0,0.4); font-size: 11px; animation: toastIn 0.25s ease; }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Light Theme Overrides */
+        body.light-theme { --bg: #f4f6fb; --panel: rgba(255, 255, 255, 0.85); --panel-solid: #ffffff; --border: rgba(0, 0, 0, 0.08); --border-hover: rgba(0, 0, 0, 0.15); --text: #1a1d24; --muted: #6b7280; }
         body.light-theme .sidebar { background: rgba(255, 255, 255, 0.9); }
         body.light-theme .nav-item { color: #5a6170; }
         body.light-theme .nav-item:hover { background: rgba(0, 0, 0, 0.05); color: #1a1d24; }
         body.light-theme .nav-item.active { background: rgba(124, 92, 255, 0.1); color: #1a1d24; }
-        body.light-theme textarea,
-        body.light-theme input,
-        body.light-theme select {
-            background: #ffffff;
-            color: #1a1d24;
-        }
+        body.light-theme textarea, body.light-theme input, body.light-theme select { background: #ffffff; color: #1a1d24; }
         body.light-theme .logs { background: #ffffff; border-color: rgba(0,0,0,0.1); }
         body.light-theme .log-line { border-bottom: 1px solid rgba(0,0,0,0.05); }
         body.light-theme .toast { background: #ffffff; color: #1a1d24; }
         body.light-theme .btn-secondary { background: rgba(0,0,0,0.05); color: #1a1d24; border-color: var(--border); }
-        body.light-theme .drag-handle { background: rgba(0, 0, 0, 0.05); border-color: rgba(0, 0, 0, 0.1); color: #4a5568; }
-        body.light-theme .player-content { background: rgba(255,255,255,0.8); }
-
+        body.light-theme th { background: rgba(0,0,0,0.03); }
+        
+        @media (max-width: 1100px) { .sidebar { width: 210px; } .main { width: calc(100% - 210px); margin-left: 210px; } .content-grid { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 760px) { .sidebar { position: relative; width: 100%; min-height: auto; } .app { flex-direction: column; } .main { width: 100%; margin-left: 0; padding: 20px; } .stats { grid-template-columns: 1fr; } }
     </style>
 </head>
 
 <body>
 
 <div class="app">
-
-    <!-- =========================================================
-         SIDEBAR
-    ========================================================== -->
-
     <aside class="sidebar">
-
         <div class="brand">
-
-            <div class="brand-logo">
-                PG
-            </div>
-
+            <div class="brand-logo">PG</div>
             <div class="brand-text">
                 <h1>Fulfillment Engine</h1>
                 <span>Operations Console</span>
             </div>
-
         </div>
 
-        <div class="nav-title">
-            Workspace
-        </div>
-
+        <div class="nav-title">Workspace</div>
         <nav class="nav">
-
-            <button class="nav-item active">
-                <span class="nav-icon">⌂</span>
-                Dashboard
+            <button class="nav-item active" onclick="scrollToSection('deposco-sync')">
+                <span class="nav-icon">⟳</span>
+                Deposco Sync
             </button>
-
             <button class="nav-item" onclick="scrollToSection('automation')">
-                <span class="nav-icon">⚡</span>
-                Automation
+                <span class="nav-icon">💬</span>
+                Legacy Excel
             </button>
-
-            <button class="nav-item" onclick="scrollToSection('fast-check')">
-                <span class="nav-icon">◉</span>
-                Fast Check
-            </button>
-
             <button class="nav-item" onclick="scrollToSection('logs-panel')">
                 <span class="nav-icon">≡</span>
                 Live Logs
             </button>
-
         </nav>
 
-        <div class="nav-title">
-            System
-        </div>
-
+        <div class="nav-title">System</div>
         <nav class="nav">
-
             <button class="nav-item" onclick="scrollToSection('cookie-panel')">
                 <span class="nav-icon">⚿</span>
                 Session
             </button>
-
             <button class="nav-item" onclick="toggleTheme()" id="themeToggleBtn">
                 <span class="nav-icon">◑</span>
                 Light Theme
             </button>
-
         </nav>
 
         <div class="sidebar-bottom">
-
             <div class="connection-card">
-
                 <div class="connection-top">
-
-                    <span class="connection-label">
-                        Engine Status
-                    </span>
-
-                    <span
-                        class="status-dot"
-                        id="sidebarStatusDot">
-                    </span>
-
+                    <span class="connection-label">Engine Status</span>
+                    <span class="status-dot" id="sidebarStatusDot"></span>
                 </div>
-
-                <div
-                    class="connection-value"
-                    id="sidebarStatus">
-                    Ready
-                </div>
-
+                <div class="connection-value" id="sidebarStatus">Ready</div>
             </div>
-
         </div>
-
     </aside>
 
-
-    <!-- =========================================================
-         MAIN
-    ========================================================== -->
-
     <main class="main">
-
-        <!-- HEADER -->
-
         <header class="topbar">
-
             <div class="page-title">
-
                 <h2>Fulfillment Dashboard</h2>
-
-                <p>
-                    Monitor orders, automate shipments, and manage PartsGeek fulfillment.
-                </p>
-
+                <p>Monitor orders, fetch tracking, and auto-comment on PartsGeek.</p>
             </div>
-
             <div class="system-status">
-
-                <span
-                    class="status-dot"
-                    id="topStatusDot">
-                </span>
-
-                <span id="topStatusText">
-                    System Ready
-                </span>
-
+                <span class="status-dot" id="topStatusDot"></span>
+                <span id="topStatusText">System Ready</span>
             </div>
-
         </header>
 
-
-        <!-- RUNNING BAR -->
-
-        <div
-            class="running-bar"
-            id="runningBar">
-
+        <div class="running-bar" id="runningBar">
             <div class="running-left">
-
                 <div class="spinner"></div>
-
-                <span class="running-text">
-                    Automation is currently running...
-                </span>
-
+                <span class="running-text">Automation is currently running...</span>
             </div>
-
-            <button
-                class="btn btn-danger"
-                onclick="stopAutomation()">
-                Stop
-            </button>
-
+            <button class="btn btn-danger" onclick="stopAutomation()">Stop</button>
         </div>
-
-
-        <!-- STATS -->
 
         <section class="stats">
-
             <div class="glass stat-card">
-
-                <div class="stat-label">
-                    Engine
-                </div>
-
-                <div
-                    class="stat-value"
-                    id="statEngine">
-                    Ready
-                </div>
-
-                <div class="stat-sub">
-                    Automation state
-                </div>
-
+                <div class="stat-label">Engine</div>
+                <div class="stat-value" id="statEngine">Ready</div>
+                <div class="stat-sub">Automation state</div>
             </div>
-
-
             <div class="glass stat-card">
-
-                <div class="stat-label">
-                    Logs
-                </div>
-
-                <div
-                    class="stat-value"
-                    id="statLogs">
-                    0
-                </div>
-
-                <div class="stat-sub">
-                    Recent activity
-                </div>
-
+                <div class="stat-label">Logs</div>
+                <div class="stat-value" id="statLogs">0</div>
+                <div class="stat-sub">Recent activity</div>
             </div>
-
-
             <div class="glass stat-card">
-
-                <div class="stat-label">
-                    Fast Check
-                </div>
-
-                <div
-                    class="stat-value"
-                    id="statOrders">
-                    —
-                </div>
-
-                <div class="stat-sub">
-                    Aged orders found
-                </div>
-
+                <div class="stat-label">Session</div>
+                <div class="stat-value" id="statSession">Active</div>
+                <div class="stat-sub">PartsGeek connection</div>
             </div>
-
-
-            <div class="glass stat-card">
-
-                <div class="stat-label">
-                    Session
-                </div>
-
-                <div
-                    class="stat-value"
-                    id="statSession">
-                    Active
-                </div>
-
-                <div class="stat-sub">
-                    PartsGeek connection
-                </div>
-
-            </div>
-
         </section>
-
-
-        <!-- MAIN GRID -->
 
         <div class="content-grid">
-
-
-            <!-- =================================================
-                 AUTOMATION
-            ================================================== -->
-
-            <section
-                class="glass panel"
-                id="automation">
-
-                <div class="panel-header">
-
-                    <div>
-
-                        <div class="panel-title">
-                            Excel Automation
-                        </div>
-
-                        <div class="panel-description">
-                            Paste your Excel rows below and process comments,
-                            tracking numbers, or both.
-                        </div>
-
-                    </div>
-
-                    <span class="badge">
-                        Automation
-                    </span>
-
-                </div>
-
-
-                <div class="field">
-
-                    <label>
-                        Processing Mode
-                    </label>
-
-                    <select id="mode">
-
-                        <option value="both">
-                            Comments + Shipment
-                        </option>
-
-                        <option value="comment">
-                            Comments Only
-                        </option>
-
-                        <option value="ship">
-                            Shipment Only
-                        </option>
-
-                    </select>
-
-                </div>
-
-
-                <div class="field">
-
-                    <label>
-                        Excel Data
-                    </label>
-
-                    <textarea
-                        id="rawData"
-                        placeholder="Paste Excel rows here...
-
-PG145875207    876195292793    DT
-PG145875208    123456789012    JZ
-PG145875209    987654321012    DT"></textarea>
-
-                </div>
-
-
-                <div class="field">
-
-                    <label>
-                        Comment Template
-                    </label>
-
-                    <textarea
-                        id="template"
-                        style="min-height: 100px;"
-                    >{facility} : {tracking} - ORDER WAS ESCALATED TO BE SHIPPED ( {date} ) // FARES.</textarea>
-
-                    <div class="template-hint">
-                        Available variables:
-                        <strong>{facility}</strong>,
-                        <strong>{tracking}</strong>,
-                        <strong>{date}</strong>
-                    </div>
-
-                </div>
-
-
-                <div class="button-row" style="grid-template-columns: repeat(4, 1fr);">
-
-                    <button
-                        class="btn btn-primary"
-                        onclick="runExcel()">
-                        ▶ Run Selected
-                    </button>
-
-                    <button
-                        class="btn btn-secondary"
-                        style="color: var(--yellow); border-color: rgba(245, 196, 81, 0.3);"
-                        onclick="runExcel('comment')">
-                        💬 Comment Only
-                    </button>
-
-                    <button
-                        class="btn btn-secondary"
-                        onclick="clearExcel()">
-                        Clear
-                    </button>
-
-                    <button
-                        class="btn btn-danger"
-                        onclick="stopAutomation()">
-                        Stop
-                    </button>
-
-                </div>
-
-            </section>
-
-
-            <!-- =================================================
-                 RIGHT COLUMN
-            ================================================== -->
-
-            <div>
-
-
-                <!-- FAST CHECK -->
-
-                <section
-                    class="glass panel"
-                    id="fast-check">
-
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+                
+                <!-- DEPOSCO DIRECT SYNC -->
+                <section class="glass panel" id="deposco-sync">
                     <div class="panel-header">
-
                         <div>
-
-                            <div class="panel-title">
-                                Fast Check
-                            </div>
-
+                            <div class="panel-title">Deposco API Sync</div>
                             <div class="panel-description">
-                                Find aged orders and process available tracking automatically.
+                                Paste the raw PartsGeek table. The engine will extract the POs, fetch live data from Deposco, and push comments back.
                             </div>
-
                         </div>
-
-                        <span class="badge">
-                            Smart Scan
-                        </span>
-
+                        <span class="badge" style="background: rgba(53, 208, 127, 0.1); color: var(--green);">API Sync</span>
                     </div>
 
+                    <div class="field">
+                        <label>PartsGeek Orders</label>
+                        <textarea id="deposcoOrders" oninput="sanitizePGOrders()" placeholder="> Paste PartsGeek Dashboard Table here..." style="min-height: 180px;"></textarea>
+                    </div>
 
-                    <div class="fast-info">
-
-                        <div class="fast-info-title">
-                            Orders aged 3+ days
+                    <div class="button-row" style="grid-template-columns: 1fr 1fr;">
+                        <button class="btn btn-primary" onclick="fetchDeposcoData()" id="btn-fetch-deposco">
+                            1. Fetch from Deposco
+                        </button>
+                        
+                        <button class="btn btn-secondary" onclick="pushCommentsToPG()" id="btn-push-comments" style="display: none; color: var(--green); border-color: rgba(53, 208, 127, 0.3);">
+                            ▶ 2. Push Comments to PG
+                        </button>
+                    </div>
+                </section>
+                
+                <!-- DATA RESULTS TABLE (Hidden until data is fetched) -->
+                <section class="glass panel" id="results-container" style="display:none;">
+                    <div class="data-header">
+                        <div class="data-nav">
+                            <div class="d-tab active" onclick="setTab('shipped', this)">Shipped (<span id="tOk">0</span>)</div>
+                            <div class="d-tab" onclick="setTab('notracking', this)">No Tracking (<span id="tWarn">0</span>)</div>
+                            <div class="d-tab" onclick="setTab('notfound', this)">Not Found (<span id="tErr">0</span>)</div>
                         </div>
-
-                        <p>
-                            The engine scans the PartsGeek supplier dashboard,
-                            identifies aged orders, then lets you process them
-                            oldest-first.
-                        </p>
-
+                        
+                        <div class="table-filters" style="align-items: center;">
+                            <select id="filter-facility" class="filter-dropdown" onchange="applyFilters()">
+                                <option value="ALL">ALL FACILITIES</option>
+                            </select>
+                            <select id="filter-status" class="filter-dropdown" onchange="applyFilters()">
+                                <option value="ALL">ALL STATUSES</option>
+                            </select>
+                        </div>
                     </div>
 
-
-                    <div class="fast-actions">
-
-                        <button
-                            class="btn btn-primary"
-                            onclick="scanFastCheck()">
-                            Scan Orders
-                        </button>
-
-                        <button
-                            class="btn btn-secondary"
-                            onclick="executeFastCheck()">
-                            Process
-                        </button>
-
+                    <div class="table-wrap">
+                        <table id="tbl-shipped">
+                            <thead><tr>
+                                <th>PG Order</th>
+                                <th>Deposco SO</th>
+                                <th>Facility</th>
+                                <th>Created</th>
+                                <th>Tracking</th>
+                                <th>Status</th>
+                            </tr></thead>
+                            <tbody id="bd-shipped"></tbody>
+                        </table>
+                        <table id="tbl-notracking" style="display:none;">
+                            <thead><tr>
+                                <th>PG Order</th>
+                                <th>Deposco SO</th>
+                                <th>Facility</th>
+                                <th>Created</th>
+                                <th>Log</th>
+                                <th>Status</th>
+                            </tr></thead>
+                            <tbody id="bd-notracking"></tbody>
+                        </table>
+                        <table id="tbl-notfound" style="display:none;">
+                            <thead><tr>
+                                <th>PG Order</th>
+                                <th>Reason</th>
+                            </tr></thead>
+                            <tbody id="bd-notfound"></tbody>
+                        </table>
                     </div>
-
                 </section>
 
-
-                <!-- SESSION -->
-
-                <section
-                    class="glass panel"
-                    id="cookie-panel"
-                    style="margin-top:18px;">
-
+                <!-- EXCEL AUTOMATION (COMMENT ONLY) -->
+                <section class="glass panel" id="automation">
                     <div class="panel-header">
-
                         <div>
-
-                            <div class="panel-title">
-                                Session
-                            </div>
-
+                            <div class="panel-title">Legacy Excel Tool</div>
                             <div class="panel-description">
-                                Update the PartsGeek session cookie used by the engine.
+                                Paste your Excel rows below to push comments manually.
                             </div>
-
                         </div>
-
-                        <span class="badge">
-                            Secure
-                        </span>
-
+                        <span class="badge">Excel</span>
                     </div>
 
+                    <div class="field">
+                        <label>Excel Data (Comments Only)</label>
+                        <textarea id="rawData" placeholder="Paste Excel rows here..."></textarea>
+                    </div>
+
+                    <div class="field">
+                        <label>Comment Template</label>
+                        <textarea id="template" style="min-height: 80px;">{facility} : {tracking} - ORDER WAS ESCALATED TO BE SHIPPED ( {date} ) // FARES.</textarea>
+                    </div>
+
+                    <div class="button-row" style="grid-template-columns: repeat(3, 1fr);">
+                        <button class="btn btn-primary" onclick="runExcel()">▶ Run Comments</button>
+                        <button class="btn btn-secondary" onclick="clearExcel()">Clear</button>
+                        <button class="btn btn-danger" onclick="stopAutomation()">Stop</button>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+                <section class="glass panel" id="cookie-panel">
+                    <div class="panel-header">
+                        <div>
+                            <div class="panel-title">Session Manager</div>
+                            <div class="panel-description">Update PartsGeek cookie.</div>
+                        </div>
+                        <span class="badge">Secure</span>
+                    </div>
 
                     <div class="field cookie-box">
-
-                        <label>
-                            Session Cookie
-                        </label>
-
-                        <input
-                            type="password"
-                            id="cookie"
-                            class="cookie-input"
-                            value="{{ cookie }}"
-                            placeholder="Paste session cookie">
-
-                        <button
-                            class="toggle-password"
-                            onclick="toggleCookie()">
-                            ◉
-                        </button>
-
+                        <label>Session Cookie</label>
+                        <input type="password" id="cookie" class="cookie-input" value="{{ cookie }}" placeholder="Paste session cookie">
+                        <button class="toggle-password" onclick="toggleCookie()">◉</button>
                     </div>
-
-
-                    <button
-                        class="btn btn-secondary btn-full"
-                        onclick="saveCookie()">
-                        Save Session
-                    </button>
-
+                    <button class="btn btn-secondary btn-full" onclick="saveCookie()">Save Session</button>
                 </section>
-
             </div>
-
         </div>
 
-
-        <!-- =====================================================
-             LIVE LOGS
-        ====================================================== -->
-
-        <section
-            class="glass panel logs-panel"
-            id="logs-panel">
-
+        <!-- LIVE LOGS -->
+        <section class="glass panel logs-panel" id="logs-panel">
             <div class="panel-header">
-
                 <div>
-
-                    <div class="panel-title">
-                        Live Activity
-                    </div>
-
-                    <div class="panel-description">
-                        Real-time output from the fulfillment engine.
-                    </div>
-
+                    <div class="panel-title">Live Activity</div>
+                    <div class="panel-description">Real-time output from the fulfillment engine.</div>
                 </div>
-
-                <button
-                    class="btn btn-secondary"
-                    onclick="clearLogs()">
-                    Clear Logs
-                </button>
-
+                <button class="btn btn-secondary" onclick="clearLogs()">Clear Logs</button>
             </div>
 
-
-            <div
-                class="logs"
-                id="logs">
-
-                <div class="empty-logs" id="emptyLogs">
-                    Waiting for activity...
-                </div>
-
+            <div class="logs" id="logs">
+                <div class="empty-logs" id="emptyLogs">Waiting for activity...</div>
             </div>
-
         </section>
-
     </main>
-
 </div>
 
-
-<!-- =============================================================
-     TOASTS
-============================================================= -->
-
-<div
-    class="toast-container"
-    id="toastContainer">
-</div>
-
-
-<!-- =============================================================
-     FLOATING YOUTUBE PLAYER
-============================================================= -->
-
-<div class="glass floating-player" id="floatingPlayer">
-    <div class="drag-handle" id="dragHandle">
-        <span>Media Player</span>
-    </div>
-    
-    <div class="player-content">
-        <div style="display: flex; gap: 8px; margin-bottom: 8px; padding: 0 10px;">
-            <input type="text" id="ytInput" placeholder="Paste link..." style="flex: 1; padding: 6px; font-size: 10px;">
-            <button class="btn btn-secondary" onclick="loadYouTubeVideo()" style="padding: 6px 10px; font-size: 10px;">Load</button>
-        </div>
-        <div style="flex: 1; position: relative;">
-            <iframe id="ytPlayer" 
-                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" 
-                src="https://www.youtube.com/embed/jfKfPfyJRdk" 
-                allow="autoplay; encrypted-media" 
-                allowfullscreen>
-            </iframe>
-        </div>
-    </div>
-</div>
-
+<div class="toast-container" id="toastContainer"></div>
 
 <script>
-
     let logCount = 0;
-
-
-    /* =========================================================
-       THEME TOGGLER
-    ========================================================= */
+    let lastResponseData = null; 
 
     function toggleTheme() {
         const isLight = document.body.classList.toggle("light-theme");
         localStorage.setItem("pg_theme", isLight ? "light" : "dark");
-
-        document.getElementById("themeToggleBtn").innerHTML = isLight
-            ? '<span class="nav-icon">◑</span> Dark Theme'
-            : '<span class="nav-icon">◑</span> Light Theme';
+        document.getElementById("themeToggleBtn").innerHTML = isLight ? '<span class="nav-icon">◑</span> Dark Theme' : '<span class="nav-icon">◑</span> Light Theme';
     }
-
     if (localStorage.getItem("pg_theme") === "light") {
         document.body.classList.add("light-theme");
         document.getElementById("themeToggleBtn").innerHTML = '<span class="nav-icon">◑</span> Dark Theme';
     }
 
-
-    /* =========================================================
-       HELPERS
-    ========================================================= */
-
     function toast(message, type = "info") {
-
-        const container =
-            document.getElementById("toastContainer");
-
-        const toast =
-            document.createElement("div");
-
+        const container = document.getElementById("toastContainer");
+        const toast = document.createElement("div");
         toast.className = "toast";
-
         toast.innerText = message;
-
-        if (type === "error") {
-            toast.style.borderColor =
-                "rgba(255,92,112,.3)";
-        }
-
-        if (type === "success") {
-            toast.style.borderColor =
-                "rgba(53,208,127,.3)";
-        }
-
+        if (type === "error") toast.style.borderColor = "rgba(255,92,112,.3)";
+        if (type === "success") toast.style.borderColor = "rgba(53,208,127,.3)";
+        if (type === "warning") toast.style.borderColor = "rgba(245,196,81,.3)";
         container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.remove();
-        }, 3500);
+        setTimeout(() => { toast.remove(); }, 3500);
     }
-
 
     function scrollToSection(id) {
-
-        const element =
-            document.getElementById(id);
-
-        if (element) {
-
-            element.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-
-        }
+        const element = document.getElementById(id);
+        if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-
 
     function setRunning(running) {
-
-        const bar =
-            document.getElementById("runningBar");
-
-        const stat =
-            document.getElementById("statEngine");
-
-        const sidebar =
-            document.getElementById("sidebarStatus");
-
-        const topText =
-            document.getElementById("topStatusText");
+        const bar = document.getElementById("runningBar");
+        const stat = document.getElementById("statEngine");
+        const sidebar = document.getElementById("sidebarStatus");
+        const topText = document.getElementById("topStatusText");
 
         if (running) {
-
             bar.classList.add("visible");
-
-            stat.innerText = "Running";
-            sidebar.innerText = "Running";
-            topText.innerText = "Automation Running";
-
+            stat.innerText = "Running"; sidebar.innerText = "Running"; topText.innerText = "Automation Running";
         } else {
-
             bar.classList.remove("visible");
-
-            stat.innerText = "Ready";
-            sidebar.innerText = "Ready";
-            topText.innerText = "System Ready";
-
+            stat.innerText = "Ready"; sidebar.innerText = "Ready"; topText.innerText = "System Ready";
         }
     }
 
+    /* DEPOSCO DIRECT SYNC */
+    function sanitizePGOrders() {
+        const rawText = document.getElementById('deposcoOrders').value;
+        const pgMatches = rawText.match(/PG\d+/g) || [];
+        const uniquePGs = [...new Set(pgMatches)];
 
-    /* =========================================================
-       COOKIE
-    ========================================================= */
-
-    function toggleCookie() {
-
-        const input =
-            document.getElementById("cookie");
-
-        input.type =
-            input.type === "password"
-                ? "text"
-                : "password";
+        if (uniquePGs.length > 0 && rawText.includes('\t')) {
+            document.getElementById('deposcoOrders').value = uniquePGs.join('\n');
+            toast(`Cleaned and extracted ${uniquePGs.length} PartsGeek POs.`, 'success');
+        }
     }
 
+    async function fetchDeposcoData() {
+        const raw = document.getElementById('deposcoOrders').value;
+        if (!raw.trim()) return toast("Paste PartsGeek orders first.", "error");
 
-    async function saveCookie() {
-
-        const cookie =
-            document.getElementById("cookie").value;
-
-        if (!cookie.trim()) {
-
-            toast(
-                "Please enter a session cookie.",
-                "error"
-            );
-
-            return;
-        }
+        setRunning(true);
+        toast("Fetching live tracking data from Deposco API...", "info");
+        document.getElementById('btn-push-comments').style.display = 'none';
+        document.getElementById('results-container').style.display = 'none';
 
         try {
+            const res = await fetch('/api/extract', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orders: raw })
+            });
 
-            const response =
-                await fetch("/api/cookie", {
+            if (res.status === 401) {
+                toast("Not authenticated with Deposco WMS. Please log in.", "error");
+                setRunning(false); return;
+            }
 
-                    method: "POST",
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
 
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
+            lastResponseData = data;
+            
+            // Build and show the data tables
+            populateFilters(data);
+            applyFilters();
+            document.getElementById('results-container').style.display = 'block';
 
-                    body: JSON.stringify({
-                        cookie: cookie
-                    })
-
-                });
-
-            const data =
-                await response.json();
-
-            if (response.ok) {
-
-                toast(
-                    "Session cookie saved successfully.",
-                    "success"
-                );
-
+            if (data.shipped.length > 0 || data.no_tracking.length > 0) {
+                document.getElementById('btn-push-comments').style.display = 'flex';
+                toast("Data fetched successfully. Ready to push comments.", "success");
             } else {
-
-                toast(
-                    data.error || "Failed to save cookie.",
-                    "error"
-                );
-
+                toast("No actionable orders found in Deposco.", "warning");
             }
-
-        } catch (error) {
-
-            toast(
-                "Connection error.",
-                "error"
-            );
-
-        }
+        } catch (error) { toast(error.message || "Connection error occurred.", "error"); }
+        setRunning(false);
     }
 
+    async function pushCommentsToPG() {
+        if (!lastResponseData) return;
+        const payload = { items: [...lastResponseData.shipped, ...lastResponseData.no_tracking] };
+        toast("Starting comment push to PartsGeek...", "info");
+        
+        try {
+            const res = await fetch('/api/push_comments', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if (data.status === 'started') {
+                toast("Push running in background. Check Live Logs.", "success");
+                scrollToSection('logs-panel');
+                document.getElementById('btn-push-comments').style.display = 'none';
+            } else toast(data.error || "Failed to start background worker.", "error");
+        } catch(e) { toast("Network error while trying to push.", "error"); }
+    }
 
-    /* =========================================================
-       EXCEL AUTOMATION
-    ========================================================= */
+    /* DATA TABLES & RENDERING */
+    function setTab(id, el) {
+        document.querySelectorAll('.d-tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        ['shipped', 'notracking', 'notfound'].forEach(t => {
+            document.getElementById(`tbl-${t}`).style.display = t === id ? 'table' : 'none';
+        });
+    }
 
-    async function runExcel(forcedMode = null) {
+    function getStatusBadge(statusText) {
+        if (!statusText) return `<span class="badge-st st-ok">SHIPPED</span>`;
+        const s = statusText.toUpperCase();
+        if (s.includes('EXCEPTION') || s.includes('DELAY') || s.includes('CANCEL')) return `<span class="badge-st st-err">${s}</span>`;
+        if (s.includes('TRANSIT') || s.includes('PICKED UP')) return `<span class="badge-st st-warn">${s}</span>`;
+        return `<span class="badge-st st-ok">${s}</span>`;
+    }
 
-        const mode =
-            forcedMode || document.getElementById("mode").value;
+    function populateFilters(data) {
+        const facilities = new Set(), statuses = new Set();
+        [...data.shipped, ...data.no_tracking].forEach(item => {
+            if(item.ship_from) facilities.add(item.ship_from);
+            if(item.status) statuses.add(item.status);
+        });
+        const facSelect = document.getElementById('filter-facility'), statSelect = document.getElementById('filter-status');
+        facSelect.innerHTML = '<option value="ALL">ALL FACILITIES</option>'; statSelect.innerHTML = '<option value="ALL">ALL STATUSES</option>';
+        Array.from(facilities).sort().forEach(f => facSelect.innerHTML += `<option value="${f}">${f}</option>`);
+        Array.from(statuses).sort().forEach(s => statSelect.innerHTML += `<option value="${s}">${s}</option>`);
+    }
 
-        const rawData =
-            document.getElementById("rawData").value;
+    function applyFilters() {
+        if (!lastResponseData) return;
+        const fac = document.getElementById('filter-facility').value;
+        const stat = document.getElementById('filter-status').value;
+        const filterFn = (item) => (fac === 'ALL' || item.ship_from === fac) && (stat === 'ALL' || item.status === stat);
 
-        const template =
-            document.getElementById("template").value;
+        const fShipped = lastResponseData.shipped.filter(filterFn);
+        const fNoTrack = lastResponseData.no_tracking.filter(filterFn);
+        const fNotFound = (fac === 'ALL' && stat === 'ALL') ? lastResponseData.not_found : [];
 
-        if (!rawData.trim()) {
+        renderGroupedTable('bd-shipped', fShipped, 'shipped');
+        renderGroupedTable('bd-notracking', fNoTrack, 'notracking');
+        
+        if (fNotFound.length > 0) {
+            document.getElementById('bd-notfound').innerHTML = fNotFound.map(r => `<tr>
+                <td class="mono" style="color:var(--red); font-weight:bold;">${r.order}</td>
+                <td style="color:var(--muted)"><span class="badge-st st-err">Not Found</span> ${r.reason}</td>
+            </tr>`).join('');
+        } else { document.getElementById('bd-notfound').innerHTML = `<tr class="empty-row"><td colspan="2">No records in this category.</td></tr>`; }
 
-            toast(
-                "Paste your Excel data first.",
-                "error"
-            );
+        document.getElementById('tOk').innerText = fShipped.length;
+        document.getElementById('tWarn').innerText = fNoTrack.length;
+        document.getElementById('tErr').innerText = fNotFound.length;
+    }
 
-            return;
-        }
+    function renderGroupedTable(tbodyId, dataArray, type) {
+        let html = '';
+        dataArray.forEach(row => {
+            if (type === 'shipped') {
+                html += `<tr>
+                    <td class="mono">${row.order}</td>
+                    <td class="mono" style="color:var(--text); font-weight:700;">${row.so_number}</td>
+                    <td class="mono">${row.ship_from || 'N/A'}</td>
+                    <td class="mono" style="color:var(--muted)">${row.created_date || 'N/A'}</td>
+                    <td class="mono"><a href="https://www.fedex.com/fedextrack/?trknbr=${row.tracking}" target="_blank" class="trk-link">${row.tracking}</a></td>
+                    <td>${getStatusBadge(row.status)}</td>
+                </tr>`;
+            } else if (type === 'notracking') {
+                html += `<tr>
+                    <td class="mono">${row.order}</td>
+                    <td class="mono" style="color:var(--text); font-weight:700;">${row.so_number}</td>
+                    <td class="mono">${row.ship_from || 'N/A'}</td>
+                    <td class="mono" style="color:var(--muted)">${row.created_date || 'N/A'}</td>
+                    <td class="mono"><span style="color:var(--muted); font-style:italic">${row.reason || 'N/A'}</span></td>
+                    <td><span class="badge-st st-warn">${row.status || 'N/A'}</span></td>
+                </tr>`;
+            }
+        });
+        if (!html) html = `<tr class="empty-row"><td colspan="${type === 'shipped' || type === 'notracking' ? 6 : 2}">No records in this category.</td></tr>`;
+        document.getElementById(tbodyId).innerHTML = html;
+    }
+
+    /* COOKIE MANAGEMENT */
+    function toggleCookie() {
+        const input = document.getElementById("cookie");
+        input.type = input.type === "password" ? "text" : "password";
+    }
+    async function saveCookie() {
+        const cookie = document.getElementById("cookie").value;
+        if (!cookie.trim()) return toast("Please enter a session cookie.", "error");
+        try {
+            const response = await fetch("/api/cookie", {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cookie: cookie })
+            });
+            const data = await response.json();
+            if (response.ok) toast("Session cookie saved successfully.", "success");
+            else toast(data.error || "Failed to save cookie.", "error");
+        } catch (error) { toast("Connection error.", "error"); }
+    }
+
+    /* LEGACY EXCEL AUTOMATION */
+    async function runExcel() {
+        const rawData = document.getElementById("rawData").value;
+        const template = document.getElementById("template").value;
+        if (!rawData.trim()) return toast("Paste your Excel data first.", "error");
 
         try {
-
-            const response =
-                await fetch("/api/run_excel", {
-
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        mode: mode,
-                        raw_data: rawData,
-                        template: template
-                    })
-
-                });
-
-            const data =
-                await response.json();
-
-            if (!response.ok) {
-
-                toast(
-                    data.error || "Unable to start automation.",
-                    "error"
-                );
-
-                return;
-            }
-
-            toast(
-                "Automation started.",
-                "success"
-            );
-
+            const response = await fetch("/api/run_excel", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mode: 'comment', raw_data: rawData, template: template })
+            });
+            const data = await response.json();
+            if (!response.ok) return toast(data.error || "Unable to start automation.", "error");
+            
+            toast("Automation started.", "success");
             setRunning(true);
-
-        } catch (error) {
-
-            toast(
-                "Unable to connect to server.",
-                "error"
-            );
-
-        }
+            scrollToSection('logs-panel');
+        } catch (error) { toast("Unable to connect to server.", "error"); }
     }
-
-
     function clearExcel() {
-
-        document.getElementById("rawData").value = "";
-
-        toast(
-            "Excel data cleared.",
-            "success"
-        );
+        document.getElementById("rawData").value = ""; toast("Excel data cleared.", "success");
     }
 
-
-    /* =========================================================
-       FAST CHECK
-    ========================================================= */
-
-    async function scanFastCheck() {
-
-        try {
-
-            toast(
-                "Scanning PartsGeek dashboard...",
-                "info"
-            );
-
-            const response =
-                await fetch(
-                    "/api/fast_check/scan",
-                    {
-                        method: "POST"
-                    }
-                );
-
-            const data =
-                await response.json();
-
-            if (!response.ok) {
-
-                toast(
-                    data.error || "Scan failed.",
-                    "error"
-                );
-
-                return;
-            }
-
-            document.getElementById(
-                "statOrders"
-            ).innerText = data.count;
-
-            toast(
-                `${data.count} aged orders found.`,
-                "success"
-            );
-
-        } catch (error) {
-
-            toast(
-                "Unable to scan dashboard.",
-                "error"
-            );
-
-        }
-    }
-
-
-    async function executeFastCheck() {
-
-        try {
-
-            const response =
-                await fetch(
-                    "/api/fast_check/execute",
-                    {
-                        method: "POST"
-                    }
-                );
-
-            const data =
-                await response.json();
-
-            if (!response.ok) {
-
-                toast(
-                    data.error || "Unable to start processing.",
-                    "error"
-                );
-
-                return;
-            }
-
-            setRunning(true);
-
-            toast(
-                "Fast Check processing started.",
-                "success"
-            );
-
-        } catch (error) {
-
-            toast(
-                "Connection error.",
-                "error"
-            );
-
-        }
-    }
-
-
-    /* =========================================================
-       STOP
-    ========================================================= */
-
+    /* LOGS AND STOP */
     async function stopAutomation() {
-
-        try {
-
-            await fetch(
-                "/api/stop",
-                {
-                    method: "POST"
-                }
-            );
-
-            setRunning(false);
-
-            toast(
-                "Stop signal sent.",
-                "success"
-            );
-
-        } catch (error) {
-
-            toast(
-                "Unable to stop automation.",
-                "error"
-            );
-
-        }
+        try { await fetch("/api/stop", { method: "POST" }); setRunning(false); toast("Stop signal sent.", "success"); } catch (error) { toast("Unable to stop automation.", "error"); }
     }
-
-
-    /* =========================================================
-       LOGS
-    ========================================================= */
-
     function classifyLog(message) {
-
-        const text =
-            message.toUpperCase();
-
-        if (
-            text.includes("ERROR") ||
-            text.includes("FAILED") ||
-            text.includes("BLOCKED") ||
-            text.includes("REJECTED")
-        ) {
-            return "error";
-        }
-
-        if (
-            text.includes("SKIP") ||
-            text.includes("WARNING")
-        ) {
-            return "warning";
-        }
-
-        if (
-            text.includes("SUCCESS") ||
-            text.includes("SAVED") ||
-            text.includes("SHIPPED") ||
-            text.includes("UPDATED")
-        ) {
-            return "success";
-        }
-
-        if (
-            text.includes("START") ||
-            text.includes("COMPLETE") ||
-            text.includes("TRACKING")
-        ) {
-            return "info";
-        }
-
+        const text = message.toUpperCase();
+        if (text.includes("ERROR") || text.includes("FAILED") || text.includes("BLOCKED") || text.includes("REJECTED")) return "error";
+        if (text.includes("SKIP") || text.includes("WARNING")) return "warning";
+        if (text.includes("SUCCESS") || text.includes("SAVED") || text.includes("SHIPPED") || text.includes("UPDATED") || text.includes("[CMNT]")) return "success";
+        if (text.includes("START") || text.includes("COMPLETE") || text.includes("TRACKING") || text.includes("---")) return "info";
         return "";
     }
-
-
     function appendLogs(logs) {
-
-        if (!logs || logs.length === 0) {
-            return;
-        }
-
-        const container =
-            document.getElementById("logs");
-
-        const empty =
-            document.getElementById("emptyLogs");
-
-        if (empty) {
-            empty.remove();
-        }
+        if (!logs || logs.length === 0) return;
+        const container = document.getElementById("logs");
+        const empty = document.getElementById("emptyLogs");
+        if (empty) empty.remove();
 
         logs.forEach(message => {
-
-            const line =
-                document.createElement("div");
-
-            line.className =
-                "log-line " +
-                classifyLog(message);
-
+            const line = document.createElement("div");
+            line.className = "log-line " + classifyLog(message);
             line.textContent = message;
-
             container.appendChild(line);
-
             logCount++;
-
         });
-
-        document.getElementById(
-            "statLogs"
-        ).innerText = logCount;
-
-        container.scrollTop =
-            container.scrollHeight;
+        document.getElementById("statLogs").innerText = logCount;
+        container.scrollTop = container.scrollHeight;
     }
-
-
     function clearLogs() {
-
-        const container =
-            document.getElementById("logs");
-
-        container.innerHTML = `
-            <div class="empty-logs" id="emptyLogs">
-                Waiting for activity...
-            </div>
-        `;
-
-        logCount = 0;
-
-        document.getElementById(
-            "statLogs"
-        ).innerText = "0";
+        document.getElementById("logs").innerHTML = `<div class="empty-logs" id="emptyLogs">Waiting for activity...</div>`;
+        logCount = 0; document.getElementById("statLogs").innerText = "0";
     }
-
-
     async function pollLogs() {
-
         try {
-
-            const response =
-                await fetch("/api/logs");
-
-            const data =
-                await response.json();
-
+            const response = await fetch("/api/logs");
+            const data = await response.json();
             appendLogs(data.logs);
-
-            setRunning(
-                data.is_running
-            );
-
-        } catch (error) {
-
-            console.log(
-                "Log polling error:",
-                error
-            );
-
-        }
-
+            setRunning(data.is_running);
+        } catch (error) {}
     }
 
-    /* =========================================================
-       YOUTUBE LOADER
-    ========================================================= */
-    function loadYouTubeVideo() {
-        const input = document.getElementById("ytInput").value.trim();
-        if (!input) return toast("Paste a YouTube link first.", "error");
-
-        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-        const match = input.match(regExp);
-
-        if (match && match[2].length === 11) {
-            const videoId = match[2];
-            document.getElementById("ytPlayer").src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-            document.getElementById("ytInput").value = ""; 
-            toast("Media loaded successfully.", "success");
-        } else {
-            toast("Invalid YouTube link format.", "error");
-        }
-    }
-
-
-    /* =========================================================
-       DRAGGABLE WIDGET LOGIC
-    ========================================================= */
-    const playerEl = document.getElementById("floatingPlayer");
-    const dragHandle = document.getElementById("dragHandle");
-
-    let isDragging = false;
-    let currentX = 0, currentY = 0, initialX, initialY;
-    let xOffset = 0, yOffset = 0;
-
-    dragHandle.addEventListener("mousedown", dragStart);
-    document.addEventListener("mouseup", dragEnd);
-    document.addEventListener("mousemove", drag);
-
-    function dragStart(e) {
-        initialX = e.clientX - xOffset;
-        initialY = e.clientY - yOffset;
-        if (e.target === dragHandle || e.target.parentNode === dragHandle) {
-            isDragging = true;
-        }
-    }
-
-    function dragEnd(e) {
-        initialX = currentX;
-        initialY = currentY;
-        isDragging = false;
-    }
-
-    function drag(e) {
-        if (isDragging) {
-            e.preventDefault();
-            currentX = e.clientX - initialX;
-            currentY = e.clientY - initialY;
-            xOffset = currentX;
-            yOffset = currentY;
-            playerEl.style.transform = `translate(${currentX}px, ${currentY}px)`;
-        }
-    }
-
-
-    /* =========================================================
-       INITIALIZATION
-    ========================================================= */
-
-    setInterval(
-        pollLogs,
-        1000
-    );
-
-    pollLogs();
-
+    setInterval(pollLogs, 1000); pollLogs();
 </script>
-
 </body>
 </html>
