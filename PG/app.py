@@ -1,9 +1,9 @@
 """
-PG Fulfillment Engine (Flask Web Version)
+ORIGIN Operations Console - Unified Backend
 ====================================================
 """
 
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, session, redirect, url_for
 import requests
 from bs4 import BeautifulSoup
 import datetime
@@ -13,33 +13,33 @@ import re
 import os
 import webbrowser
 import logging
+import asyncio
+import aiohttp
+import json
+import uuid
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
 
-# Silence the default Flask/Werkzeug terminal output
 log_werkzeug = logging.getLogger('werkzeug')
 log_werkzeug.setLevel(logging.ERROR)
 
 # =====================================================================
-# CONFIG & STATE
+# CONFIG & PG STATE
 # =====================================================================
 SESSION_FILE = "pg_session_cookie.txt"
-DEFAULT_COOKIE = "COMMERCE_DEVICE_UUID=4104C997-8D9A-4762-ACF4-5F1DAB827959; COMMERCE_SESSION_ID=aa1p3ov05ood73c9ou5g9acte0; cf_clearance=UqFCn9jLXcZum.AscXRCyXAVsSbgISj0t78X_Dl3W_U-1784792093-1.2.1.1-gtu_6d8jMrI9.DiUSqoTZw85kMFEGf8YI0nDtmf.Mfmcrq3bz60qdZEWQknKYAVodosRCwqps0NaxKa3LoyXjnQQNPY5AiApCCtRdQAfHTPbS.n_4HRc4621SzjdEypPfPEjmXFX8XptW_6GTic.zOBe_IL1b8DZW3.N5KbSWY3ob0Bln6XP4nEV_qBtmcT9JSRVG.cRYEU9luod6KTRhQLO3FLos45zCZg4vphNmfWLrDdfxVQARNlmwpmlIbbO5fAwt6MoQQm20nb4MnOOSerE.v.0c8ro1qruf_89aVNMOc_curxm2o8_cQf8hdN2RzdkCzrMKM_2mU6FrGiBsF7NzQZoZ4cHD2ne0UjYDc1D7Qj__Kfj6Ot2FWLQCs5sKgC2k5OUqzeYL1N1Qfu1y_ou35H5nVaFhWe4Sfg.v7.BXGxNyPdD6urdEboXeVSz_mJInMrSsy8q6_q3P77COd9BaIoQuLtEO4ttYRWwLetWJpq8tF47jhZOuthExmvvqevasNhOVG887ROYv5xUalz6r_sos7aPZC08gTHuIxEp3cgWURJmM53xHYY_kbqs2z44UoPypw.jdEekP25y7Q; ssabt=a; _pg=v%3D1%26vid%3Dd3dcd6e8-271d-4db9-87ba-515124e88385%26fh%3D1784792094729%26sc%3D1%26lv%3D1784792094729; cjConsent=MHxOfDB8Tnww; cjUser=da9f9d42-188e-4787-8ce5-f9c1fe96c1c9; _ga=GA1.1.1220533976.1784792095; PGFPID=FPID2.2.yT26w0eeOlEVGFoXobnAQPrR0LHSLgSCk8sjfSlqvSw%3D.1784792095; FPAU=1.2.370327694.1784792097; _gtmeec=e30%3D; _rdt_uuid=1784792095025.646f322f-e318-4e86-8940-ad3f5d90dfb4; _ga_RV4L35KF7B=GS2.1.s1784792095$o1$g1$t1784792266$j60$l0$h592455491; PHPSESSID=ckbvhpbbon22duiq3q4r8hcbja; COMMERCE_SESSION_UUID=45DEC76B-004E-4716-9A15-2531042B8223; helper_flashMessenger=%5B%5D"
-
-USER_AGENT = ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-              '(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36')
-
+DEFAULT_COOKIE = "COMMERCE_DEVICE_UUID=4104C997-8D9A-4762-ACF4-5F1DAB827959; COMMERCE_SESSION_ID=aa1p3ov05ood73c9ou5g9acte0;"
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36'
 BASE_URL = "https://admin.partsgeek.com/suppliers/orders/view"
 DASHBOARD_URL = "https://admin.partsgeek.com/suppliers/orders/index?ss=&rows=1000&sort=default&status=3"
 
-# Thread Control & Logging
 automation_running = threading.Event()
 app_logs = []
 pending_fast_check_orders = []
 
 def log(msg):
     app_logs.append(msg)
-    print(msg) # Print to console as well
+    print(msg)
 
 def get_logs():
     global app_logs
@@ -47,9 +47,6 @@ def get_logs():
     app_logs.clear()
     return logs_copy
 
-# =====================================================================
-# SESSION MANAGEMENT
-# =====================================================================
 def load_cookie():
     if os.path.exists(SESSION_FILE):
         try:
@@ -92,7 +89,7 @@ def check_response(resp):
     return resp
 
 # =====================================================================
-# SCRAPING LOGIC
+# PARTSGEEK SCRAPING LOGIC
 # =====================================================================
 def order_url(order_num): return f"{BASE_URL}?id={order_num.replace('PG', '')}"
 
@@ -145,11 +142,9 @@ def submit_comment(order_num, soup, url, comment_text):
     target_text = comment_text.strip()
     today_date = get_today_date()
     
-    # Check 1 & 2: If the exact target string is present, both template and date are correct.
     if target_text in current_text:
         return "SKIPPED (Template & Date Match)"
 
-    # If it fails the check, update the comment box with the corrected data.
     payload = extract_form_payload(soup)
     payload.update({
         'action:update': '',
@@ -160,7 +155,6 @@ def submit_comment(order_num, soup, url, comment_text):
     resp = SESSION.post(url, data=payload, headers=post_headers(url), allow_redirects=False, timeout=20)
     check_response(resp)
     
-    # Granular logging based on what was wrong with the original text
     if resp.status_code == 302:
         if today_date not in current_text:
             return "UPDATED (Date Mismatch Fixed)"
@@ -168,6 +162,7 @@ def submit_comment(order_num, soup, url, comment_text):
             return "UPDATED (Template/Tracking Fixed)"
             
     return f"FAILED (HTTP {resp.status_code})"
+
 def submit_shipment(order_num, soup, url, tracking_numbers):
     checkboxes = soup.find_all('input', {'name': 'item_id[]'})
     item_ids = [cb.get('value') for cb in checkboxes if cb.get('value')]
@@ -214,55 +209,45 @@ def scrape_dashboard_for_aged_orders():
 # =====================================================================
 # BACKGROUND PROCESSES
 # =====================================================================
-def process_excel(mode, raw_data, template):
+def process_comment_push(items):
     automation_running.set()
-    log(f"\n--- EXCEL AUTOMATION ({mode.upper()}) ---")
+    log("\n--- STARTING COMMENT PUSH TO PARTSGEEK ---")
+    today = get_today_date()
     
-    lines = raw_data.split('\n')
-    total_valid = 0
-
-    for line in lines:
+    for item in items:
         if not automation_running.is_set():
             log("--- Stopped by User ---")
             break
-
-        cols = [c.strip() for c in line.split('\t')]
-        if len(cols) < 3 or not cols[0].startswith('PG'): continue
-        
-        total_valid += 1
-        order_num, tracking_raw, facility_raw = cols[0], cols[1], cols[2].upper()
-        tracking_list = [t.strip() for t in re.split(r'[\s,]+', tracking_raw) if t.strip()]
-        tracking_display = ' - '.join(tracking_list) if tracking_list else 'NO TN'
+            
+        order_num = item['order']
+        facility_raw = item.get('ship_from', 'DT').upper()
         facility = 'DT' if 'DT' in facility_raw else ('JZ' if 'JZ' in facility_raw else facility_raw)
-
-        try:
-            resp, soup, url = fetch_order_page(order_num)
-            if "In Transit" in resp.text:
-                log(f"[SKIP] {order_num}: already In Transit")
-                continue
-
-            if mode in ("both", "comment"):
-                comment_text = template.format(facility=facility, tracking=tracking_display, date=get_today_date())
-                status = submit_comment(order_num, soup, url, comment_text)
-                log(f"[CMNT] {order_num} -> {status}")
-
-            if mode in ("both", "ship"):
-                if tracking_list:
-                    log(f"  └─ [TRACKING CONFIRMED] {', '.join(tracking_list)}")
-                    ship_status = submit_shipment(order_num, soup, url, tracking_list)
-                    log(f"  └─ [SHIP] {order_num} -> {ship_status}")
-                else:
-                    log(f"  └─ [SHIP SKIP] {order_num} -> No tracking provided")
         
+        if item['category'] == 'SHIPPED':
+            tracking = item.get('tracking', '')
+            comment_text = f"{facility} : {tracking} - ORDER WAS ESCALATED TO BE SHIPPED ( {today} ) // FARES."
+        else:
+            comment_text = f"DT : NO TN - ORDER WAS ESCALATED TO BE SHIPPED ( {today} ) // FARES."
+            
+        try:
+            resp_pg, soup_pg, url_pg = fetch_order_page(order_num)
+            
+            if "In Transit" in resp_pg.text:
+                log(f"[SKIP] {order_num}: Already In Transit")
+                continue
+                
+            status = submit_comment(order_num, soup_pg, url_pg, comment_text)
+            log(f"[CMNT] {order_num} -> {status}")
+            
         except CloudflareBlockedError as e:
             log(f"[BLOCKED] {order_num}: {e}")
             break
         except Exception as e:
-            log(f"[NETWORK ERROR] {order_num}: {e}")
-            
+            log(f"[ERROR] {order_num}: {e}")
+        
         time.sleep(0.3)
-
-    log(f"--- Complete: {total_valid} Rows Processed ---")
+        
+    log("--- COMMENT PUSH COMPLETE ---")
     automation_running.clear()
 
 def process_fast_check_execution():
@@ -308,45 +293,311 @@ def process_fast_check_execution():
     automation_running.clear()
 
 # =====================================================================
+# DEPOSCO WMS ENGINE
+# =====================================================================
+async def authenticate_deposco(http_session, company, username, password):
+    url = "https://dax.deposco.com/deposco/resources/nonsecure/authenticate"
+    payload = {"company": company, "username": username, "password": password, "isMobile": False}
+    headers = {"accept": "application/json, text/plain, */*", "content-type": "application/json"}
+    
+    try:
+        async with http_session.post(url, json=payload, headers=headers, timeout=10) as response:
+            if response.status != 200:
+                return None, f"Login Failed (HTTP {response.status})"
+            data = await response.json(content_type=None)
+            token = data.get('X-Auth-Token')
+            return (token, "Success") if token else (None, "Token not found")
+    except Exception as e:
+        return None, f"Connection Error: {str(e)}"
+
+def get_view_payload(po_number):
+    return {
+        "view": {
+            "id": 10644, "entityId": 5053, "companyId": 73, "userId": 2509, "groupId": 0,
+            "text": "Rob Tracking numbers", "entityName": "OrderHeader", "entityClass": "com.deposco.domain.OrderHeader",
+            "isOwn": True, "isShared": True, "bookmarkActive": False, "addActionLinks": True,
+            "columns": [
+                {"title": "Customer Order Number", "name": "customerOrderNumber", "fieldName": "customerOrderNumber", "sortOrder": 0, "dataType": "Text", "returnDataType": "Text", "filtering": {"filterString": po_number, "operator": 5, "filterStrings": []}, "length": 50, "displayOrder": 3, "entityId": 5053, "entity": "com.deposco.domain.OrderHeader", "entityType": "Business", "entityName": "OrderHeader", "attributeId": 114035, "subAttributeId": 0, "relatedToId": 0, "required": False, "readOnly": False, "custom": False, "searchable": True, "sortable": False, "businessKey": False, "isEntityTag": False, "allowNegative": False},
+                {"title": "Number", "name": "number", "fieldName": "number", "displayOrder": 0},
+                {"title": "Updated Date", "name": "updatedDate", "fieldName": "updatedDate", "displayOrder": 1},
+                {"title": "Created Date", "name": "createdDate", "fieldName": "createdDate", "displayOrder": 2},
+                {"title": "Current Status", "name": "currentStatus", "fieldName": "currentStatus", "displayOrder": 5},
+                {"title": "Ship From Facility - Number", "name": "shipFrom.number", "fieldName": "shipFrom", "displayOrder": 15},
+                {"title": "Tracking Link(s)", "name": "baseTrackingLink", "fieldName": "baseTrackingLink", "dataType": "API", "apiSql": "SELECT group_concat(concat( CASE WHEN c_.TRACKING_NUMBER IS NOT NULL THEN COALESCE(concat(ss_.SHIP_VENDOR, '=', ss_.FREIGHT_TYPE, '=', c_.TRACKING_NUMBER, ','),'') ELSE '' END , '', COALESCE(concat(ss_.SHIP_VENDOR, '=', ss_.FREIGHT_TYPE, '=', ch_.TRACKING_NUMBER), '') )) from SHIPMENT_ORDER_HEADER soh_ inner join SHIPMENT s_ on soh_.SHIPMENT_ID = s_.SHIPMENT_ID INNER JOIN SHIPPING_SERVICE ss_ ON ss_.ship_via = s_.SHIP_VIA LEFT JOIN CONTAINER c_ ON c_.shipment_id = s_.shipment_id LEFT JOIN CONTAINER_HIST ch_ ON ch_.shipment_id = s_.shipment_id WHERE soh_.ORDER_HEADER_ID = :id", "displayOrder": 11},
+                {"title": "Tracking Number", "name": "billToPhone2", "fieldName": "billToPhone2", "displayOrder": 70}
+            ],
+            "filterAttributes": [], "numberOfRows": 100
+        },
+        "page": 1, "rowsPerPage": 100, "uiRowsPerPage": -1, "useLabel": False, "isExport": False, "translateEnums": False
+    }
+
+async def fetch_order(http_session, po_number, token, semaphore):
+    headers = {"accept": "application/json, text/plain, */*", "content-type": "application/json", "authorization": f"Bearer {token}"}
+    
+    async with semaphore:
+        try:
+            view_api_url = "https://dax.deposco.com/deposco/resources/secure/entity"
+            payload = get_view_payload(po_number)
+            
+            async with http_session.post(view_api_url, headers=headers, json=payload, timeout=15) as res_view:
+                if res_view.status != 200:
+                    return [{"order": po_number, "category": "NOT_FOUND", "reason": f"View HTTP {res_view.status}"}]
+                    
+                view_data = await res_view.json(content_type=None)
+                records = view_data.get("response", [])
+                
+                if not records:
+                    return [{"order": po_number, "category": "NOT_FOUND", "reason": "Not Found in Deposco"}]
+                    
+                out_results = []
+                restricted_prefixes = ("CA", "PA", "RE", "PA+")
+
+                for rec in records:
+                    so_num = rec.get("number", "N/A")
+                    cust_order = rec.get("customerOrderNumber") or "N/A"
+                    created_date = rec.get("createdDate", "N/A")
+                    ship_from = rec.get("shipFrom.number", "N/A")
+                    status = rec.get("currentStatus", "Unknown")
+                    
+                    base_track = rec.get("baseTrackingLink") or ""
+                    fallback_track = rec.get("billToPhone2") or ""
+                    
+                    has_warning = False
+                    if so_num and so_num != "N/A":
+                        if any(so_num.upper().startswith(p) for p in restricted_prefixes):
+                            has_warning = True
+
+                    t_nums = []
+                    if base_track:
+                        for link in base_track.split(','):
+                            if '=' in link: t_nums.append(link.split('=')[-1].strip())
+                                
+                    final_trk = " | ".join([t for t in t_nums if t])
+                    if not final_trk and fallback_track: final_trk = fallback_track.strip()
+                        
+                    if final_trk:
+                        out_results.append({
+                            "order": po_number, "so_number": so_num, "customer_order": cust_order, 
+                            "ship_from": ship_from, "created_date": created_date, "category": "SHIPPED", 
+                            "status": status, "tracking": final_trk, "has_prefix_warning": has_warning,
+                            "raw_trackings": t_nums or ([fallback_track.strip()] if fallback_track else [])
+                        })
+                    else:
+                        out_results.append({
+                            "order": po_number, "so_number": so_num, "customer_order": cust_order, 
+                            "ship_from": ship_from, "created_date": created_date, "category": "NO_TRACKING", 
+                            "status": status, "reason": "No tracking info found", "has_prefix_warning": has_warning,
+                            "raw_trackings": []
+                        })
+                        
+                return out_results
+
+        except Exception as e:
+            return [{"order": po_number, "category": "NOT_FOUND", "reason": f"Error: {type(e).__name__}"}]
+
+async def process_batch(company, username, password, order_numbers):
+    semaphore = asyncio.Semaphore(30)
+    async with aiohttp.ClientSession() as http_session:
+        token, auth_msg = await authenticate_deposco(http_session, company, username, password)
+        
+        if not token:
+            return {"error": f"Authentication Failed: {auth_msg}"}
+            
+        tasks = [fetch_order(http_session, order, token, semaphore) for order in order_numbers]
+        results = await asyncio.gather(*tasks)
+        
+        flat_results = []
+        for sublist in results: flat_results.extend(sublist)
+
+        shipped = [r for r in flat_results if r["category"] == "SHIPPED"]
+        no_tracking = [r for r in flat_results if r["category"] == "NO_TRACKING"]
+        not_found = [r for r in flat_results if r["category"] == "NOT_FOUND"]
+
+        return {"shipped": shipped, "no_tracking": no_tracking, "not_found": not_found}
+
+def parse_cookie_input(cookie_input):
+    try:
+        cookies = json.loads(cookie_input)
+        if isinstance(cookies, list):
+            return "; ".join([f"{c['name']}={c['value']}" for c in cookies if 'name' in c and 'value' in c])
+    except Exception:
+        pass
+    return cookie_input
+
+async def async_fetch_walmart_unshipped(session_cookie):
+    url = "https://seller.walmart.com/aurora/v2/auroraOrderService/gql"
+    xsrf_match = re.search(r'XSRF-TOKEN=([^;]+)', session_cookie)
+    xsrf_token = xsrf_match.group(1) if xsrf_match else ""
+
+    headers = {
+        "accept": "application/json", "content-type": "application/json", "cookie": session_cookie,
+        "origin": "https://seller.walmart.com", "user-agent": USER_AGENT, "wm_aurora.locale": "en-US",
+        "wm_aurora.market": "US", "wm_svc.name": "API"
+    }
+    if xsrf_token: headers["x-xsrf-token"] = xsrf_token
+
+    fetch_query = """query get_orders_getAllOrders($params: SearchParams) {
+      get_orders_getAllOrders(searchParams: $params) {
+         orderInfo { purchaseOrders { purchaseOrderId } }
+      }
+    }"""
+    payload = {"query": fetch_query, "variables": {"params": {"orderGroups": "Unshipped", "pageInfo": {"limit": "200", "offset": "0", "cursor": "*"}}}}
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(url, json=payload, headers=headers, timeout=15) as res:
+                if res.status != 200: return {"success": False, "error": f"HTTP {res.status}"}
+                data = await res.json()
+                if "errors" in data: return {"success": False, "error": str(data["errors"])}
+                
+                purchase_orders = data.get("data", {}).get("get_orders_getAllOrders", {}).get("orderInfo", {}).get("purchaseOrders", [])
+                orders = [o.get("purchaseOrderId") for o in purchase_orders if o.get("purchaseOrderId")]
+                return {"success": True, "orders": orders}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+async def async_update_walmart_tracking(po_number, tracking_number_str, session_cookie):
+    url = "https://seller.walmart.com/aurora/v2/auroraOrderService/gql"
+    trackings = [t.strip() for t in re.split(r'[,\s\t]+', str(tracking_number_str)) if t.strip()]
+    if not trackings: return {"success": False, "error": "No valid tracking numbers parsed"}
+
+    xsrf_match = re.search(r'XSRF-TOKEN=([^;]+)', session_cookie)
+    xsrf_token = xsrf_match.group(1) if xsrf_match else ""
+
+    headers = {
+        "accept": "application/json", "content-type": "application/json", "cookie": session_cookie,
+        "origin": "https://seller.walmart.com", "user-agent": USER_AGENT, "wm_aurora.locale": "en-US",
+        "wm_aurora.market": "US", "wm_svc.name": "API"
+    }
+    if xsrf_token: headers["x-xsrf-token"] = xsrf_token
+
+    async with aiohttp.ClientSession() as session:
+        headers["pxqueryname"] = "get_orders_getAllOrders,get_orders_getAllOrders"
+        headers["wm_qos.correlation_id"] = str(uuid.uuid4())
+        fetch_query = """query get_orders_getAllOrders($params: SearchParams) { get_orders_getAllOrders(searchParams: $params) { orderInfo { purchaseOrders { poLines { lineId primeLineNo quantity } } } } }"""
+        fetch_payload = {"query": fetch_query, "variables": {"params": {"orderGroups": "All", "isDetailPage": True, "poNumber": str(po_number).strip()}}}
+        
+        po_lines = []
+        try:
+            async with session.post(url, json=fetch_payload, headers=headers, timeout=15) as res:
+                if res.status == 200:
+                    data = await res.json()
+                    po_lines = data.get("data", {}).get("get_orders_getAllOrders", {}).get("orderInfo", {}).get("purchaseOrders", [{}])[0].get("poLines", [])
+        except Exception: pass
+        if not po_lines: po_lines = [{"lineId": ["1"], "primeLineNo": [1], "quantity": 1}]
+
+        poLineRequestDTOList, unused_trackings = [], []
+        num_lines, num_tracks = len(po_lines), len(trackings)
+
+        for i, line in enumerate(po_lines):
+            trk = trackings[i] if i < num_tracks else trackings[-1]
+            poLineRequestDTOList.append({
+                "lineIds": [str(line.get("lineId", ["1"])[0])], "primeLineNo": [int(line.get("primeLineNo", [1])[0])],
+                "updatedQuantity": str(line.get("quantity", "1")), "updatedStatus": "Shipped", "intentToCancelOverride": False,
+                "shipmentInfo": {"carrierServiceCode": "FDX-ST", "trackingNo": trk}
+            })
+        if num_tracks > num_lines: unused_trackings = trackings[num_lines:]
+
+        headers["pxqueryname"] = "update_orders_updateOrder,update_orders_updateOrder"
+        headers["wm_qos.correlation_id"] = str(uuid.uuid4())
+        update_query = """mutation update_orders_updateOrder($input: [PoUpdateRequest]) { update_orders_updateOrder(poUpdateRequest: $input) { poUpdateResponseStatus { poNumber updateResponsePoLineList { status statusDescription lineIds error } errorList } } }"""
+        update_payload = {"query": update_query, "variables": {"input": [{"poNumber": str(po_number).strip(), "isWCPOrder": False, "poLineRequestDTOList": poLineRequestDTOList}]}}
+
+        try:
+            async with session.post(url, json=update_payload, headers=headers, timeout=15) as res:
+                if res.status != 200: return {"success": False, "error": f"HTTP {res.status}"}
+                update_data = await res.json()
+                if "errors" in update_data: return {"success": False, "error": str(update_data["errors"])}
+                try:
+                    resp_status = update_data["data"]["update_orders_updateOrder"]["poUpdateResponseStatus"]
+                    if resp_status.get("errorList"): return {"success": False, "error": str(resp_status["errorList"])}
+                    for l in resp_status.get("updateResponsePoLineList", []):
+                        if l.get("error"): return {"success": False, "error": l.get("statusDescription")}
+                except Exception: pass
+                return {"success": True, "po_number": po_number, "tracking": trackings, "unused_trackings": unused_trackings}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+# =====================================================================
 # API ROUTES
 # =====================================================================
 @app.route('/')
 def index():
-    return render_template('index.html', cookie=load_cookie())
+    if "username" not in session: return redirect(url_for('login'))
+    return redirect(url_for('dashboard'))
 
-@app.route('/api/cookie', methods=['POST'])
-def update_cookie():
+@app.route('/login', methods=['GET', 'POST'])
+async def login():
+    if request.method == 'GET':
+        if "username" in session: return redirect(url_for("dashboard"))
+        return render_template("login.html")
+        
     data = request.json
-    save_cookie(data.get('cookie', ''))
-    return jsonify({"status": "success", "message": "Cookie saved."})
+    async with aiohttp.ClientSession() as http_session:
+        token, auth_msg = await authenticate_deposco(
+            http_session, data.get("company", "").strip(), 
+            data.get("username", "").strip(), data.get("password", "").strip()
+        )
+        if token:
+            session.update({
+                "company": data.get("company", "").strip(), 
+                "username": data.get("username", "").strip(), "password": data.get("password", "").strip()
+            })
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": auth_msg}), 401
 
-@app.route('/api/run_excel', methods=['POST'])
-def run_excel():
+@app.route('/dashboard')
+def dashboard():
+    if "username" not in session: return redirect(url_for('login'))
+    return render_template('index.html', cookie=load_cookie(), company=session["company"])
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+@app.route('/api/extract', methods=["POST"])
+async def extract():
+    if "username" not in session: return jsonify({"error": "Not authenticated. Please log in again."}), 401
+    orders = [o.strip() for o in request.json.get("orders", "").replace(',', ' ').split() if o.strip()]
+    if not orders: return jsonify({"error": "No valid orders provided"}), 400
+    results = await process_batch(session["company"], session["username"], session["password"], orders)
+    return jsonify(results)
+
+@app.route('/api/push_comments', methods=['POST'])
+def push_comments():
+    if "username" not in session: return jsonify({"error": "Not authenticated."}), 401
     if automation_running.is_set(): return jsonify({"error": "Already running"}), 400
+    
     data = request.json
-    threading.Thread(target=process_excel, args=(data['mode'], data['raw_data'], data['template']), daemon=True).start()
+    items = data.get('items', [])
+    if not items: return jsonify({"error": "No items provided"}), 400
+    
+    threading.Thread(target=process_comment_push, args=(items,), daemon=True).start()
     return jsonify({"status": "started"})
 
-@app.route('/api/fast_check/scan', methods=['POST'])
-def fast_check_scan():
-    if automation_running.is_set(): return jsonify({"error": "Already running"}), 400
-    global pending_fast_check_orders
-    log("\n--- FAST CHECK (Scraping Dashboard...) ---")
-    try:
-        pending_fast_check_orders = scrape_dashboard_for_aged_orders()
-        return jsonify({"status": "scanned", "count": len(pending_fast_check_orders)})
-    except CloudflareBlockedError as e:
-        log(f"[BLOCKED] {e}")
-        return jsonify({"error": "Blocked by Cloudflare"}), 403
+@app.route('/api/get-walmart-orders', methods=['POST'])
+async def get_walmart_unshipped():
+    if "username" not in session: return jsonify({"success": False, "error": "Not authenticated."}), 401
+    data = request.get_json()
+    if not data.get('session_cookie'): return jsonify({"success": False, "error": "Missing Walmart session cookies."}), 400
+    session_cookie = parse_cookie_input(data.get('session_cookie'))
+    result = await async_fetch_walmart_unshipped(session_cookie)
+    return jsonify(result), 200
 
-@app.route('/api/fast_check/execute', methods=['POST'])
-def fast_check_execute():
-    if automation_running.is_set(): return jsonify({"error": "Already running"}), 400
-    threading.Thread(target=process_fast_check_execution, daemon=True).start()
-    return jsonify({"status": "started"})
+@app.route('/api/update-walmart', methods=['POST'])
+async def update_walmart_order():
+    if "username" not in session: return jsonify({"success": False, "error": "Not authenticated."}), 401
+    data = request.get_json()
+    if not all([data.get('po_number'), data.get('tracking_number'), data.get('session_cookie')]):
+        return jsonify({"success": False, "error": "Missing required data"}), 400
+    session_cookie = parse_cookie_input(data.get('session_cookie'))
+    result = await async_update_walmart_tracking(data.get('po_number'), data.get('tracking_number'), session_cookie)
+    return jsonify(result), 200
 
 @app.route('/api/stop', methods=['POST'])
 def stop():
+    if "username" not in session: return jsonify({"error": "Not authenticated."}), 401
     automation_running.clear()
     log("\n[SYSTEM] Stop signal sent. Halting...")
     return jsonify({"status": "stopped"})
@@ -358,10 +609,6 @@ def get_recent_logs():
 if __name__ == '__main__':
     def open_browser():
         webbrowser.open_new('http://127.0.0.1:5000/')
-        
-    # Prevent opening two tabs when Flask's debug auto-reloader triggers
     if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
         threading.Timer(1.0, open_browser).start()
-
-            
     app.run(debug=True, port=5000)
